@@ -1,0 +1,53 @@
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using SS.ProfileService.API.Infrastructure.Data;
+using SS.ProfileService.API.Features.Profiles.CreateProfile;
+using SS.ProfileService.API.Features.Profiles.GetProfileById;
+using SS.ProfileService.API.Features.Profiles.UpdateProfile;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add Services
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddOpenApi();
+
+// Register DbContext with PostgreSQL
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    // Do not register Npgsql if already configured by the testing host or if we want to let testing host override it.
+}
+else
+{
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseNpgsql(connectionString));
+}
+
+// Register MediatR
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+
+// Register FluentValidation
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.UseHttpsRedirection();
+
+// Map Vertical Slice Endpoints
+app.MapCreateProfileEndpoint();
+app.MapGetProfileByIdEndpoint();
+app.MapUpdateProfileEndpoint();
+
+// Health Check Endpoint
+app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Service = "ProfileService" }));
+
+app.Run();
+
+// Make the implicit Program class public so functional test projects can reference it
+public partial class Program { }
