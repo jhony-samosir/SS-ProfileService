@@ -1,4 +1,5 @@
 using FluentValidation;
+using Ganss.Xss;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,8 @@ public class UpdateProfileHandler(
     ApplicationDbContext dbContext,
     IValidator<UpdateProfileCommand> validator) : IRequestHandler<UpdateProfileCommand, IResult>
 {
+    private static readonly HtmlSanitizer Sanitizer = new();
+
     public async Task<IResult> Handle(UpdateProfileCommand command, CancellationToken cancellationToken)
     {
         var validationResult = await validator.ValidateAsync(command, cancellationToken);
@@ -27,11 +30,17 @@ public class UpdateProfileHandler(
             return Results.NotFound(new { Message = $"Profile for User (PublicId: {command.UserPublicId}) not found." });
         }
 
+        // Sanitize string inputs to prevent XSS
+        var sanitizedFullName = Sanitizer.Sanitize(command.FullName);
+        var sanitizedPhoneNumber = command.PhoneNumber != null ? Sanitizer.Sanitize(command.PhoneNumber) : null;
+        var sanitizedAvatarUrl = command.AvatarUrl != null ? Sanitizer.Sanitize(command.AvatarUrl) : null;
+        var sanitizedBio = command.Bio != null ? Sanitizer.Sanitize(command.Bio) : null;
+
         // Apply changes
-        profile.FullName = command.FullName;
-        profile.PhoneNumber = command.PhoneNumber;
-        profile.AvatarUrl = command.AvatarUrl;
-        profile.Bio = command.Bio;
+        profile.FullName = sanitizedFullName;
+        profile.PhoneNumber = sanitizedPhoneNumber;
+        profile.AvatarUrl = sanitizedAvatarUrl;
+        profile.Bio = sanitizedBio;
         profile.Gender = command.Gender;
         profile.DateOfBirth = command.DateOfBirth;
         profile.UpdatedAt = DateTimeOffset.UtcNow;

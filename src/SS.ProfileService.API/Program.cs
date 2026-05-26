@@ -5,6 +5,7 @@ using SS.ProfileService.API.Features.Profiles.CreateProfile;
 using SS.ProfileService.API.Features.Profiles.GetProfileById;
 using SS.ProfileService.API.Features.Profiles.UpdateProfile;
 using SS.ProfileService.API.Extensions;
+using SS.ProfileService.API.Middleware;
 using Serilog;
 using Serilog.Formatting.Compact;
 
@@ -50,6 +51,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enforce OWASP security response headers
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+// Enforce Zero-Trust HMAC Origin Verification (unless testing)
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseMiddleware<GatewaySignatureMiddleware>();
+}
 
 // Map Vertical Slice Endpoints
 app.MapCreateProfileEndpoint();

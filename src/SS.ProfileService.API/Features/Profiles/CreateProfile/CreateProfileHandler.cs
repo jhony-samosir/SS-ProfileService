@@ -1,4 +1,5 @@
 using FluentValidation;
+using Ganss.Xss;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,8 @@ public class CreateProfileHandler(
     ApplicationDbContext dbContext,
     IValidator<CreateProfileCommand> validator) : IRequestHandler<CreateProfileCommand, IResult>
 {
+    private static readonly HtmlSanitizer Sanitizer = new();
+
     public async Task<IResult> Handle(CreateProfileCommand command, CancellationToken cancellationToken)
     {
         var validationResult = await validator.ValidateAsync(command, cancellationToken);
@@ -28,14 +31,20 @@ public class CreateProfileHandler(
             return Results.Conflict(new { Message = $"Profile for User (Id: {command.UserId} / PublicId: {command.UserPublicId}) already exists." });
         }
 
+        // Sanitize string inputs to prevent XSS
+        var sanitizedFullName = Sanitizer.Sanitize(command.FullName);
+        var sanitizedPhoneNumber = command.PhoneNumber != null ? Sanitizer.Sanitize(command.PhoneNumber) : null;
+        var sanitizedAvatarUrl = command.AvatarUrl != null ? Sanitizer.Sanitize(command.AvatarUrl) : null;
+        var sanitizedBio = command.Bio != null ? Sanitizer.Sanitize(command.Bio) : null;
+
         var profile = new UserProfile
         {
             UserId = command.UserId,
             UserPublicId = command.UserPublicId,
-            FullName = command.FullName,
-            PhoneNumber = command.PhoneNumber,
-            AvatarUrl = command.AvatarUrl,
-            Bio = command.Bio,
+            FullName = sanitizedFullName,
+            PhoneNumber = sanitizedPhoneNumber,
+            AvatarUrl = sanitizedAvatarUrl,
+            Bio = sanitizedBio,
             Gender = command.Gender,
             DateOfBirth = command.DateOfBirth,
             CreatedBy = "System"
