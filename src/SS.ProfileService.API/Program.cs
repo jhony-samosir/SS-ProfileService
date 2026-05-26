@@ -4,8 +4,17 @@ using SS.ProfileService.API.Infrastructure.Data;
 using SS.ProfileService.API.Features.Profiles.CreateProfile;
 using SS.ProfileService.API.Features.Profiles.GetProfileById;
 using SS.ProfileService.API.Features.Profiles.UpdateProfile;
+using SS.ProfileService.API.Extensions;
+using Serilog;
+using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Serilog
+builder.Host.UseSerilog((context, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console(new CompactJsonFormatter()));
 
 // Add Services
 builder.Services.AddEndpointsApiExplorer();
@@ -22,6 +31,9 @@ else
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(connectionString));
 }
+
+// Register Observability & OpenTelemetry
+builder.Services.AddProfileObservability(builder.Configuration);
 
 // Register MediatR
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));

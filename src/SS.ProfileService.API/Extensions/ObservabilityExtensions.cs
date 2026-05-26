@@ -1,0 +1,54 @@
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Logs;
+
+namespace SS.ProfileService.API.Extensions;
+
+public static class ObservabilityExtensions
+{
+    /// <summary>
+    /// Configures OpenTelemetry tracing + metrics + structured JSON logging.
+    /// Exports to OTEL Collector via OTLP.
+    /// </summary>
+    public static IServiceCollection AddProfileObservability(
+        this IServiceCollection services, IConfiguration config)
+    {
+        var svcName = config["OpenTelemetry:ServiceName"] ?? "ss-profile-service";
+        var endpoint = config["OpenTelemetry:Endpoint"] ?? "http://localhost:4317";
+
+        services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService(svcName))
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation(opts =>
+                {
+                    // Exclude health endpoint from tracing to avoid noise
+                    opts.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health");
+                    opts.EnrichWithHttpRequest = (activity, req) =>
+                    {
+                        activity.SetTag("http.client_ip", req.HttpContext.Connection.RemoteIpAddress?.ToString());
+                        activity.SetTag("correlation_id", req.Headers["X-Correlation-Id"].FirstOrDefault());
+                    };
+                })
+                .AddHttpClientInstrumentation()
+                .AddOtlpExporter(o => o.Endpoint = new Uri(endpoint)))
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddRuntimeInstrumentation()
+                .AddOtlpExporter(o => o.Endpoint = new Uri(endpoint)));
+
+        // Structured JSON logging with OTEL
+        services.AddLogging(logging =>
+        {
+            logging.AddOpenTelemetry(otelLogging =>
+            {
+                otelLogging.IncludeFormattedMessage = true;
+                otelLogging.IncludeScopes = true;
+                otelLogging.ParseStateValues = true;
+                otelLogging.AddOtlpExporter(o => o.Endpoint = new Uri(endpoint));
+            });
+        });
+
+        return services;
+    }
+}
