@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -69,8 +70,16 @@ public class ProfileEndpointsTests : IClassFixture<WebApplicationFactory<Program
     {
         // Arrange
         var client = _factory.CreateClient();
-        var userId = Guid.NewGuid();
-        var request = new CreateProfileRequest(userId, "John Doe", "12345678", "123 Main St", "http://avatar.url");
+        var userPublicId = Guid.NewGuid();
+        var request = new CreateProfileRequest(
+            UserId: 1,
+            UserPublicId: userPublicId,
+            FullName: "John Doe",
+            PhoneNumber: "12345678",
+            AvatarUrl: "http://avatar.url",
+            Bio: "Software developer",
+            Gender: "Male",
+            DateOfBirth: new DateOnly(1990, 1, 1));
 
         // Act
         var response = await client.PostAsJsonAsync("/api/profiles", request);
@@ -79,7 +88,7 @@ public class ProfileEndpointsTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<CreatedProfileResponse>();
         Assert.NotNull(created);
-        Assert.Equal(userId, created.UserId);
+        Assert.Equal(userPublicId, created.UserPublicId);
         Assert.Equal("John Doe", created.FullName);
     }
 
@@ -88,7 +97,15 @@ public class ProfileEndpointsTests : IClassFixture<WebApplicationFactory<Program
     {
         // Arrange
         var client = _factory.CreateClient();
-        var request = new CreateProfileRequest(Guid.NewGuid(), "", "12345678", "123 St", "");
+        var request = new CreateProfileRequest(
+            UserId: 2,
+            UserPublicId: Guid.NewGuid(),
+            FullName: "",
+            PhoneNumber: "12345678",
+            AvatarUrl: "http://avatar.url",
+            Bio: "Bio",
+            Gender: "Male",
+            DateOfBirth: new DateOnly(1990, 1, 1));
 
         // Act
         var response = await client.PostAsJsonAsync("/api/profiles", request);
@@ -97,6 +114,81 @@ public class ProfileEndpointsTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetProfile_ById_ReturnsProfile()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var userPublicId = Guid.NewGuid();
+        var createRequest = new CreateProfileRequest(
+            UserId: 10,
+            UserPublicId: userPublicId,
+            FullName: "Alice Smith",
+            PhoneNumber: "87654321",
+            AvatarUrl: "http://avatar2.url",
+            Bio: "Alice's Bio",
+            Gender: "Female",
+            DateOfBirth: new DateOnly(1995, 5, 5));
+
+        var createResponse = await client.PostAsJsonAsync("/api/profiles", createRequest);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatedProfileResponse>();
+        Assert.NotNull(created);
+
+        // Act
+        var getResponse = await client.GetAsync($"/api/profiles/db/{created.Id}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+        var profile = await getResponse.Content.ReadFromJsonAsync<ProfileResponse>();
+        Assert.NotNull(profile);
+        Assert.Equal("Alice Smith", profile.FullName);
+        Assert.Equal(10, profile.UserId);
+        Assert.Equal(userPublicId, profile.UserPublicId);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_WithValidData_ReturnsUpdated()
+    {
+        // Arrange
+        var client = _factory.CreateClient();
+        var userPublicId = Guid.NewGuid();
+        var createRequest = new CreateProfileRequest(
+            UserId: 20,
+            UserPublicId: userPublicId,
+            FullName: "Bob Builder",
+            PhoneNumber: "11111111",
+            AvatarUrl: "http://avatar3.url",
+            Bio: "Can we fix it?",
+            Gender: "Male",
+            DateOfBirth: new DateOnly(1985, 3, 3));
+
+        var createResponse = await client.PostAsJsonAsync("/api/profiles", createRequest);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<CreatedProfileResponse>();
+        Assert.NotNull(created);
+
+        var updateRequest = new UpdateProfileRequest(
+            FullName: "Bob The Builder",
+            PhoneNumber: "22222222",
+            AvatarUrl: "http://newavatar.url",
+            Bio: "Yes we can!",
+            Gender: "Male",
+            DateOfBirth: new DateOnly(1985, 3, 3));
+
+        // Act
+        var updateResponse = await client.PutAsJsonAsync($"/api/profiles/{userPublicId}", updateRequest);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<UpdatedProfileResponse>();
+        Assert.NotNull(updated);
+        Assert.Equal("Bob The Builder", updated.FullName);
+        Assert.Equal("Yes we can!", updated.Bio);
+        Assert.Equal("22222222", updated.PhoneNumber);
+    }
+
     private record HealthResponse(string Status, string Service);
-    private record CreatedProfileResponse(int Id, Guid PublicId, Guid UserId, string FullName);
+    private record CreatedProfileResponse(int Id, Guid PublicId, Guid UserPublicId, string FullName);
+    private record UpdatedProfileResponse(int Id, Guid PublicId, Guid UserPublicId, string FullName, string? Bio, string? PhoneNumber);
 }

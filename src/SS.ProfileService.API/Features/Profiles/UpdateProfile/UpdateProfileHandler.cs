@@ -19,19 +19,21 @@ public class UpdateProfileHandler(
             return Results.ValidationProblem(validationResult.ToDictionary());
         }
 
-        var profile = await dbContext.Profiles
-            .FirstOrDefaultAsync(p => p.UserId == command.UserId && p.DeletedAt == null, cancellationToken);
+        var profile = await dbContext.UserProfiles
+            .FirstOrDefaultAsync(p => p.UserPublicId == command.UserPublicId && p.DeletedAt == null, cancellationToken);
 
         if (profile == null)
         {
-            return Results.NotFound(new { Message = $"Profile for UserId '{command.UserId}' not found." });
+            return Results.NotFound(new { Message = $"Profile for User (PublicId: {command.UserPublicId}) not found." });
         }
 
         // Apply changes
         profile.FullName = command.FullName;
         profile.PhoneNumber = command.PhoneNumber;
-        profile.Address = command.Address;
         profile.AvatarUrl = command.AvatarUrl;
+        profile.Bio = command.Bio;
+        profile.Gender = command.Gender;
+        profile.DateOfBirth = command.DateOfBirth;
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.UpdatedBy = "System";
 
@@ -42,10 +44,13 @@ public class UpdateProfileHandler(
             profile.Id,
             profile.PublicId,
             profile.UserId,
+            profile.UserPublicId,
             profile.FullName,
             profile.PhoneNumber,
-            profile.Address,
             profile.AvatarUrl,
+            profile.Bio,
+            profile.Gender,
+            profile.DateOfBirth,
             profile.UpdatedAt
         });
     }

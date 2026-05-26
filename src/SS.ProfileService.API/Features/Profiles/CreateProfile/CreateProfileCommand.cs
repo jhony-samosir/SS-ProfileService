@@ -1,11 +1,15 @@
+using System;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 
 namespace SS.ProfileService.API.Features.Profiles.CreateProfile;
 
 public record CreateProfileCommand(
-    Guid UserId,
+    int UserId,
+    Guid UserPublicId,
     string FullName,
     string? PhoneNumber,
-    string? Address,
-    string? AvatarUrl) : IRequest<IResult>;
+    string? AvatarUrl,
+    string? Bio,
+    string? Gender,
+    DateOnly? DateOfBirth) : IRequest<IResult>;

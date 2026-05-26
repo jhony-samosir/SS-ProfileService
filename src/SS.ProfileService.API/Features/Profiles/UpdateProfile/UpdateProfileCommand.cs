@@ -1,12 +1,14 @@
+using System;
 using MediatR;
 using Microsoft.AspNetCore.Http;
-using System;
 
 namespace SS.ProfileService.API.Features.Profiles.UpdateProfile;
 
 public record UpdateProfileCommand(
-    Guid UserId,
+    Guid UserPublicId,
     string FullName,
     string? PhoneNumber,
-    string? Address,
-    string? AvatarUrl) : IRequest<IResult>;
+    string? AvatarUrl,
+    string? Bio,
+    string? Gender,
+    DateOnly? DateOfBirth) : IRequest<IResult>;

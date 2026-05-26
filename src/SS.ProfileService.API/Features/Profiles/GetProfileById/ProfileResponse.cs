@@ -5,10 +5,13 @@ namespace SS.ProfileService.API.Features.Profiles.GetProfileById;
 public record ProfileResponse(
     int Id,
     Guid PublicId,
-    Guid UserId,
+    int UserId,
+    Guid UserPublicId,
     string FullName,
     string? PhoneNumber,
-    string? Address,
     string? AvatarUrl,
+    string? Bio,
+    string? Gender,
+    DateOnly? DateOfBirth,
     DateTimeOffset CreatedAt,
     DateTimeOffset? UpdatedAt);

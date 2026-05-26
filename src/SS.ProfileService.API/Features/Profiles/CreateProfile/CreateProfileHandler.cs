@@ -19,37 +19,43 @@ public class CreateProfileHandler(
             return Results.ValidationProblem(validationResult.ToDictionary());
         }
 
-        // Check if profile already exists for this UserId
-        var existingProfile = await dbContext.Profiles
-            .AnyAsync(p => p.UserId == command.UserId && p.DeletedAt == null, cancellationToken);
+        // Check if profile already exists for this UserId or UserPublicId
+        var existingProfile = await dbContext.UserProfiles
+            .AnyAsync(p => (p.UserId == command.UserId || p.UserPublicId == command.UserPublicId) && p.DeletedAt == null, cancellationToken);
             
         if (existingProfile)
         {
-            return Results.Conflict(new { Message = $"Profile for UserId '{command.UserId}' already exists." });
+            return Results.Conflict(new { Message = $"Profile for User (Id: {command.UserId} / PublicId: {command.UserPublicId}) already exists." });
         }
 
-        var profile = new Profile
+        var profile = new UserProfile
         {
             UserId = command.UserId,
+            UserPublicId = command.UserPublicId,
             FullName = command.FullName,
             PhoneNumber = command.PhoneNumber,
-            Address = command.Address,
             AvatarUrl = command.AvatarUrl,
+            Bio = command.Bio,
+            Gender = command.Gender,
+            DateOfBirth = command.DateOfBirth,
             CreatedBy = "System"
         };
 
-        dbContext.Profiles.Add(profile);
+        dbContext.UserProfiles.Add(profile);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return Results.Created($"/api/profiles/{profile.UserId}", new
+        return Results.Created($"/api/profiles/{profile.UserPublicId}", new
         {
             profile.Id,
             profile.PublicId,
             profile.UserId,
+            profile.UserPublicId,
             profile.FullName,
             profile.PhoneNumber,
-            profile.Address,
             profile.AvatarUrl,
+            profile.Bio,
+            profile.Gender,
+            profile.DateOfBirth,
             profile.CreatedAt
         });
     }

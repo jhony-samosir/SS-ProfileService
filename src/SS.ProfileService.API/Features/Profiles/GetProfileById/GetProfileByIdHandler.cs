@@ -9,29 +9,36 @@ public class GetProfileByIdHandler(ApplicationDbContext dbContext) : IRequestHan
 {
     public async Task<IResult> Handle(GetProfileQuery query, CancellationToken cancellationToken)
     {
-        var profileQuery = dbContext.Profiles.AsNoTracking().Where(p => p.DeletedAt == null);
+        var profileQuery = dbContext.UserProfiles.AsNoTracking().Where(p => p.DeletedAt == null);
 
-        if (query.UserId.HasValue)
+        if (query.UserPublicId.HasValue)
+        {
+            profileQuery = profileQuery.Where(p => p.UserPublicId == query.UserPublicId.Value);
+        }
+        else if (query.UserId.HasValue)
         {
             profileQuery = profileQuery.Where(p => p.UserId == query.UserId.Value);
         }
-        else if (query.Id.HasValue)
+        else if (query.ProfileId.HasValue)
         {
-            profileQuery = profileQuery.Where(p => p.Id == query.Id.Value);
+            profileQuery = profileQuery.Where(p => p.Id == query.ProfileId.Value);
         }
         else
         {
-            return Results.BadRequest(new { Message = "Either UserId or profile Id must be provided." });
+            return Results.BadRequest(new { Message = "Either UserId, UserPublicId, or ProfileId must be provided." });
         }
 
         var profile = await profileQuery.Select(p => new ProfileResponse(
             p.Id,
             p.PublicId,
             p.UserId,
+            p.UserPublicId,
             p.FullName,
             p.PhoneNumber,
-            p.Address,
             p.AvatarUrl,
+            p.Bio,
+            p.Gender,
+            p.DateOfBirth,
             p.CreatedAt,
             p.UpdatedAt
         )).FirstOrDefaultAsync(cancellationToken);

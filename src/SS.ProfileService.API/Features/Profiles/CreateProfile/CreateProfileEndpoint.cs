@@ -13,10 +13,13 @@ public static class CreateProfileEndpoint
         {
             var command = new CreateProfileCommand(
                 request.UserId,
+                request.UserPublicId,
                 request.FullName,
                 request.PhoneNumber,
-                request.Address,
-                request.AvatarUrl);
+                request.AvatarUrl,
+                request.Bio,
+                request.Gender,
+                request.DateOfBirth);
 
             return await sender.Send(command);
         })

@@ -4,4 +4,4 @@ using System;
 
 namespace SS.ProfileService.API.Features.Profiles.GetProfileById;
 
-public record GetProfileQuery(Guid? UserId, int? Id) : IRequest<IResult>;
+public record GetProfileQuery(Guid? UserPublicId, int? UserId, int? ProfileId) : IRequest<IResult>;
