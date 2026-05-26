@@ -11,3 +11,4 @@ obj/
 .vscode/
 *.local.settings.json
 appsettings.Development.json
+appsettings.Production.json
