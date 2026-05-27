@@ -71,6 +71,8 @@ public class UserEventConsumerWorker : BackgroundService
         {
             HostName = _configuration["RabbitMQ:Host"] ?? "localhost",
             Port = int.TryParse(_configuration["RabbitMQ:Port"], out var port) ? port : 5672,
+            UserName = _configuration["RabbitMQ:Username"] ?? "guest",
+            Password = _configuration["RabbitMQ:Password"] ?? "guest",
             AutomaticRecoveryEnabled = true,
             NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
         };

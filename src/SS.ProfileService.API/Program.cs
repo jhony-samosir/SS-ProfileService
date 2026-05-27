@@ -30,8 +30,10 @@ if (builder.Environment.IsEnvironment("Testing"))
 }
 else
 {
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(connectionString));
+    builder.Services.AddDbContext<ApplicationDbContext>(
+        options => options.UseNpgsql(connectionString),
+        contextLifetime: ServiceLifetime.Scoped,
+        optionsLifetime: ServiceLifetime.Singleton);
     
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
         options.UseNpgsql(connectionString));
