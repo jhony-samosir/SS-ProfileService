@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using SS.ProfileService.API.Infrastructure.Data;
+using SS.ProfileService.API.Infrastructure.Messaging;
 using SS.ProfileService.API.Features.Profiles.CreateProfile;
 using SS.ProfileService.API.Features.Profiles.GetProfileById;
 using SS.ProfileService.API.Features.Profiles.UpdateProfile;
@@ -31,6 +32,11 @@ else
 {
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(connectionString));
+    
+    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+        options.UseNpgsql(connectionString));
+
+    builder.Services.AddHostedService<UserEventConsumerWorker>();
 }
 
 // Register Observability & OpenTelemetry
