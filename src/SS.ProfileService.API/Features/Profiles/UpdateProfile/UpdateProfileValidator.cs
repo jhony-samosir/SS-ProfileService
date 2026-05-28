@@ -22,23 +22,5 @@ public class UpdateProfileValidator : AbstractValidator<UpdateProfileCommand>
         RuleFor(x => x.DateOfBirth)
             .Must(dob => dob == null || dob.Value <= DateOnly.FromDateTime(DateTime.UtcNow))
             .WithMessage("Date of birth cannot be in the future.");
-
-        RuleForEach(x => x.Addresses).ChildRules(address =>
-        {
-            address.RuleFor(x => x.AddressLabel).NotEmpty().MaximumLength(100);
-            address.RuleFor(x => x.ReceiverName).NotEmpty().MaximumLength(255);
-            address.RuleFor(x => x.ReceiverPhone).NotEmpty().MaximumLength(50);
-            address.RuleFor(x => x.StreetAddress).NotEmpty().MaximumLength(500);
-            address.RuleFor(x => x.City).NotEmpty().MaximumLength(100);
-            address.RuleFor(x => x.StateProvince).NotEmpty().MaximumLength(100);
-            address.RuleFor(x => x.PostalCode).NotEmpty().MaximumLength(20);
-            address.RuleFor(x => x.Country).NotEmpty().MaximumLength(100);
-            address.RuleFor(x => x.Latitude).InclusiveBetween(-90, 90).When(x => x.Latitude.HasValue);
-            address.RuleFor(x => x.Longitude).InclusiveBetween(-180, 180).When(x => x.Longitude.HasValue);
-        });
-
-        RuleFor(x => x.Addresses)
-            .Must(addresses => addresses == null || addresses.Count(a => a.IsDefault) <= 1)
-            .WithMessage("Only one default address is allowed.");
     }
 }

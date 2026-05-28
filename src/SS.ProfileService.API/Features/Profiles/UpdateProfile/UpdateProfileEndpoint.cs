@@ -23,8 +23,7 @@ public static class UpdateProfileEndpoint
                 request.AvatarUrl,
                 request.Bio,
                 request.Gender,
-                request.DateOfBirth,
-                request.Addresses);
+                request.DateOfBirth);
 
             var result = await sender.Send(command);
             return result;

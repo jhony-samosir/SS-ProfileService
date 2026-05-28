@@ -5,6 +5,10 @@ using SS.ProfileService.API.Infrastructure.Messaging;
 using SS.ProfileService.API.Features.Profiles.CreateProfile;
 using SS.ProfileService.API.Features.Profiles.GetProfileById;
 using SS.ProfileService.API.Features.Profiles.UpdateProfile;
+using SS.ProfileService.API.Features.Addresses.CreateAddress;
+using SS.ProfileService.API.Features.Addresses.UpdateAddress;
+using SS.ProfileService.API.Features.Addresses.DeleteAddress;
+using SS.ProfileService.API.Features.Addresses.SetDefaultAddress;
 using SS.ProfileService.API.Extensions;
 using SS.ProfileService.API.Middleware;
 using Serilog;
@@ -34,7 +38,7 @@ else
         options => options.UseNpgsql(connectionString),
         contextLifetime: ServiceLifetime.Scoped,
         optionsLifetime: ServiceLifetime.Singleton);
-    
+
     builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
         options.UseNpgsql(connectionString));
 
@@ -73,6 +77,10 @@ if (!app.Environment.IsEnvironment("Testing"))
 app.MapCreateProfileEndpoint();
 app.MapGetProfileByIdEndpoint();
 app.MapUpdateProfileEndpoint();
+app.MapCreateAddressEndpoint();
+app.MapUpdateAddressEndpoint();
+app.MapDeleteAddressEndpoint();
+app.MapSetDefaultAddressEndpoint();
 
 // Health Check Endpoint
 app.MapGet("/health", () => Results.Ok(new { Status = "Healthy", Service = "ProfileService" }));

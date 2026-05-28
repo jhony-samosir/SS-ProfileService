@@ -12,5 +12,4 @@ public record UpdateProfileCommand(
     string? AvatarUrl,
     string? Bio,
     string? Gender,
-    DateOnly? DateOfBirth,
-    IEnumerable<AddressRequest>? Addresses) : IRequest<IResult>;
+    DateOnly? DateOfBirth) : IRequest<IResult>;

@@ -48,34 +48,6 @@ public class UpdateProfileHandler(
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.UpdatedBy = "System";
 
-        if (command.Addresses != null)
-        {
-            foreach (var address in profile.Addresses.Where(a => a.DeletedAt == null).ToList())
-            {
-                address.DeletedAt = DateTimeOffset.UtcNow;
-                address.DeletedBy = "System";
-            }
-
-            foreach (var address in command.Addresses)
-            {
-                profile.Addresses.Add(new UserAddress
-                {
-                    AddressLabel = Sanitizer.Sanitize(address.AddressLabel),
-                    ReceiverName = Sanitizer.Sanitize(address.ReceiverName),
-                    ReceiverPhone = Sanitizer.Sanitize(address.ReceiverPhone),
-                    StreetAddress = Sanitizer.Sanitize(address.StreetAddress),
-                    City = Sanitizer.Sanitize(address.City),
-                    StateProvince = Sanitizer.Sanitize(address.StateProvince),
-                    PostalCode = Sanitizer.Sanitize(address.PostalCode),
-                    Country = Sanitizer.Sanitize(address.Country),
-                    Latitude = address.Latitude,
-                    Longitude = address.Longitude,
-                    IsDefault = address.IsDefault,
-                    CreatedBy = "System"
-                });
-            }
-        }
-
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Results.Ok(new
