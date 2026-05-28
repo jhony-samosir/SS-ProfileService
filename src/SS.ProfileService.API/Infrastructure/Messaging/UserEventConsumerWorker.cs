@@ -40,7 +40,7 @@ public class UserEventConsumerWorker : BackgroundService
         _logger.LogInformation("User Event Consumer Worker starting.");
 
         await Task.Delay(1000, stoppingToken); // Give time for app to fully start
-        
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -77,8 +77,8 @@ public class UserEventConsumerWorker : BackgroundService
             NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
         };
 
-        _logger.LogInformation("Connecting to RabbitMQ at {Host}:{Port}", 
-            _configuration["RabbitMQ:Host"] ?? "localhost", 
+        _logger.LogInformation("Connecting to RabbitMQ at {Host}:{Port}",
+            _configuration["RabbitMQ:Host"] ?? "localhost",
             _configuration["RabbitMQ:Port"] ?? "5672");
 
         _connection = await factory.CreateConnectionAsync(stoppingToken);
@@ -109,8 +109,8 @@ public class UserEventConsumerWorker : BackgroundService
                 exchange: ExchangeName,
                 routingKey: routingKey,
                 cancellationToken: stoppingToken);
-            
-            _logger.LogInformation("Bound queue {Queue} to exchange {Exchange} with routing key {RoutingKey}", 
+
+            _logger.LogInformation("Bound queue {Queue} to exchange {Exchange} with routing key {RoutingKey}",
                 QueueName, ExchangeName, routingKey);
         }
 
@@ -129,10 +129,10 @@ public class UserEventConsumerWorker : BackgroundService
             {
                 var body = ea.Body.ToArray();
                 var messageJson = Encoding.UTF8.GetString(body);
-                
+
                 // Process the message
                 await ProcessMessageAsync(messageJson, ea, stoppingToken);
-                
+
                 // Acknowledge the message
                 await _channel.BasicAckAsync(
                     deliveryTag: ea.DeliveryTag,
@@ -157,7 +157,7 @@ public class UserEventConsumerWorker : BackgroundService
             autoAck: false,
             consumer: consumer,
             cancellationToken: stoppingToken);
-        
+
         _logger.LogInformation("Started consuming messages from queue {Queue}", QueueName);
 
         // Wait until cancellation
@@ -167,33 +167,40 @@ public class UserEventConsumerWorker : BackgroundService
     private async Task ProcessMessageAsync(string jsonMessage, BasicDeliverEventArgs ea, CancellationToken stoppingToken)
     {
         _logger.LogDebug("Received message: {Message}", jsonMessage);
-        
+
         try
         {
             // Deserialize the message to dynamic to access common properties
             using var doc = JsonDocument.Parse(jsonMessage);
             var root = doc.RootElement;
-            
-            // Extract common properties
-            if (!root.TryGetProperty("userId", out var userIdProp) ||
-                !root.TryGetProperty("userPublicId", out var publicIdProp) ||
-                !root.TryGetProperty("fullName", out var fullNameProp))
+
+            // Extract common properties. AuthService publishes `publicId`, while older docs/code used `userPublicId`.
+            if (!root.TryGetProperty("userId", out var userIdProp))
             {
-                _logger.LogWarning("Message missing required fields: {Message}", jsonMessage);
+                _logger.LogWarning("Message missing required field userId: {Message}", jsonMessage);
+                return;
+            }
+
+            if (!root.TryGetProperty("publicId", out var publicIdProp) &&
+                !root.TryGetProperty("userPublicId", out publicIdProp))
+            {
+                _logger.LogWarning("Message missing required field publicId/userPublicId: {Message}", jsonMessage);
                 return;
             }
 
             var userId = userIdProp.GetInt32();
             var userPublicId = Guid.Parse(publicIdProp.GetString()!);
-            var fullName = fullNameProp.GetString() ?? "Unknown User";
+            var fullName = root.TryGetProperty("fullName", out var fullNameProp)
+                ? fullNameProp.GetString() ?? "Unknown User"
+                : "Unknown User";
             var email = root.TryGetProperty("email", out var emailProp) ? emailProp.GetString() : null;
 
             // Use idempotent inbox pattern - check if we've already processed this message
             // The message ID could be in RabbitMQ headers or we can generate one from the content
             var messageId = GenerateMessageId(ea, jsonMessage);
-            
+
             await using var dbContext = _dbContextFactory.CreateDbContext();
-            
+
             // Begin transaction for atomicity
             await using var transaction = await dbContext.Database.BeginTransactionAsync(stoppingToken);
             try
@@ -201,7 +208,7 @@ public class UserEventConsumerWorker : BackgroundService
                 // Check if this message was already processed (idempotency)
                 var alreadyProcessed = await dbContext.InboxEvents
                     .AnyAsync(ie => ie.MessageId == messageId, stoppingToken);
-                
+
                 if (alreadyProcessed)
                 {
                     _logger.LogInformation("Message {MessageId} already processed. Skipping.", messageId);
@@ -230,7 +237,7 @@ public class UserEventConsumerWorker : BackgroundService
                     };
 
                     dbContext.UserProfiles.Add(profile);
-                    _logger.LogInformation("Created profile for UserId {UserId} from {EventType} event", 
+                    _logger.LogInformation("Created profile for UserId {UserId} from {EventType} event",
                         userId, ea.RoutingKey);
                 }
                 else
@@ -251,9 +258,9 @@ public class UserEventConsumerWorker : BackgroundService
 
                 dbContext.InboxEvents.Add(inboxEvent);
                 await dbContext.SaveChangesAsync(stoppingToken);
-                
+
                 await transaction.CommitAsync(stoppingToken);
-                _logger.LogInformation("Successfully processed {EventType} event for UserId {UserId}", 
+                _logger.LogInformation("Successfully processed {EventType} event for UserId {UserId}",
                     ea.RoutingKey, userId);
             }
             catch (Exception ex)
@@ -277,14 +284,14 @@ public class UserEventConsumerWorker : BackgroundService
     private string GenerateMessageId(BasicDeliverEventArgs ea, string jsonMessage)
     {
         // Try to get message ID from headers first
-        if (ea.BasicProperties.Headers != null && 
+        if (ea.BasicProperties.Headers != null &&
             ea.BasicProperties.Headers.TryGetValue("message-id", out var headerValue) &&
             headerValue is byte[] headerBytes &&
             headerBytes.Length > 0)
         {
             return Encoding.UTF8.GetString(headerBytes);
         }
-        
+
         // Fallback: create a hash from the message content and routing key
         // This ensures idempotency even if RabbitMQ redelivers the same message
         var input = $"{ea.RoutingKey}:{jsonMessage}";
@@ -299,12 +306,12 @@ public class UserEventConsumerWorker : BackgroundService
         {
             await _channel.CloseAsync();
         }
-        
+
         if (_connection != null && _connection.IsOpen)
         {
             await _connection.CloseAsync();
         }
-        
+
         _channel = null;
         _connection = null;
     }
