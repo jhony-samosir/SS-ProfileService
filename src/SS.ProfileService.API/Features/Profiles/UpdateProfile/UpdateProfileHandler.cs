@@ -3,6 +3,7 @@ using Ganss.Xss;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using SS.ProfileService.API.Domain.Entities;
 using SS.ProfileService.API.Infrastructure.Data;
 using System;
 
@@ -23,6 +24,7 @@ public class UpdateProfileHandler(
         }
 
         var profile = await dbContext.UserProfiles
+            .Include(p => p.Addresses)
             .FirstOrDefaultAsync(p => p.UserPublicId == command.UserPublicId && p.DeletedAt == null, cancellationToken);
 
         if (profile == null)
@@ -46,6 +48,34 @@ public class UpdateProfileHandler(
         profile.UpdatedAt = DateTimeOffset.UtcNow;
         profile.UpdatedBy = "System";
 
+        if (command.Addresses != null)
+        {
+            foreach (var address in profile.Addresses.Where(a => a.DeletedAt == null).ToList())
+            {
+                address.DeletedAt = DateTimeOffset.UtcNow;
+                address.DeletedBy = "System";
+            }
+
+            foreach (var address in command.Addresses)
+            {
+                profile.Addresses.Add(new UserAddress
+                {
+                    AddressLabel = Sanitizer.Sanitize(address.AddressLabel),
+                    ReceiverName = Sanitizer.Sanitize(address.ReceiverName),
+                    ReceiverPhone = Sanitizer.Sanitize(address.ReceiverPhone),
+                    StreetAddress = Sanitizer.Sanitize(address.StreetAddress),
+                    City = Sanitizer.Sanitize(address.City),
+                    StateProvince = Sanitizer.Sanitize(address.StateProvince),
+                    PostalCode = Sanitizer.Sanitize(address.PostalCode),
+                    Country = Sanitizer.Sanitize(address.Country),
+                    Latitude = address.Latitude,
+                    Longitude = address.Longitude,
+                    IsDefault = address.IsDefault,
+                    CreatedBy = "System"
+                });
+            }
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Results.Ok(new
@@ -60,7 +90,24 @@ public class UpdateProfileHandler(
             profile.Bio,
             profile.Gender,
             profile.DateOfBirth,
-            profile.UpdatedAt
+            profile.UpdatedAt,
+            Addresses = profile.Addresses
+                .Where(a => a.DeletedAt == null)
+                .Select(a => new
+                {
+                    a.PublicId,
+                    a.AddressLabel,
+                    a.ReceiverName,
+                    a.ReceiverPhone,
+                    a.StreetAddress,
+                    a.City,
+                    a.StateProvince,
+                    a.PostalCode,
+                    a.Country,
+                    a.Latitude,
+                    a.Longitude,
+                    a.IsDefault
+                })
         });
     }
 }

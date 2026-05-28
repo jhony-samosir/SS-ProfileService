@@ -28,7 +28,9 @@ public class GetProfileByIdHandler(ApplicationDbContext dbContext) : IRequestHan
             return Results.BadRequest(new { Message = "Either UserId, UserPublicId, or ProfileId must be provided." });
         }
 
-        var profile = await profileQuery.Select(p => new ProfileResponse(
+        var profile = await profileQuery
+            .Include(p => p.Addresses.Where(a => a.DeletedAt == null))
+            .Select(p => new ProfileResponse(
             p.Id,
             p.PublicId,
             p.UserId,
@@ -40,7 +42,21 @@ public class GetProfileByIdHandler(ApplicationDbContext dbContext) : IRequestHan
             p.Gender,
             p.DateOfBirth,
             p.CreatedAt,
-            p.UpdatedAt
+            p.UpdatedAt,
+            p.Addresses.Select(a => new AddressResponse(
+                a.PublicId,
+                a.AddressLabel,
+                a.ReceiverName,
+                a.ReceiverPhone,
+                a.StreetAddress,
+                a.City,
+                a.StateProvince,
+                a.PostalCode,
+                a.Country,
+                a.Latitude,
+                a.Longitude,
+                a.IsDefault
+            )).ToList()
         )).FirstOrDefaultAsync(cancellationToken);
 
         if (profile == null)

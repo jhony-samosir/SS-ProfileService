@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 
@@ -11,4 +12,5 @@ public record UpdateProfileCommand(
     string? AvatarUrl,
     string? Bio,
     string? Gender,
-    DateOnly? DateOfBirth) : IRequest<IResult>;
+    DateOnly? DateOfBirth,
+    IEnumerable<AddressRequest>? Addresses) : IRequest<IResult>;
