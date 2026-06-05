@@ -2,133 +2,145 @@
 
 ## Overview
 
-SS-ProfileService is a microservice responsible for handling customer profile and address data for the SamStore e-commerce platform. Built with ASP.NET Core 10 using a Vertical Slice Architecture approach, the service is specialized for optimal, independent data handling around user demographics and shipping locations.
+`SS-ProfileService` adalah microservice pengelola profil pelanggan dan buku alamat untuk platform SamStore. Layanan backend ini memisahkan secara jelas informasi demografis pengguna (seperti biodata, nomor HP) dari fungsi core autentikasi, serta mengelola alamat pengiriman (*shipping address*) pengguna.
 
-Operating as a downstream component, it communicates securely with the `SS-APIGateway` via internal origin signatures and synchronizes its local dataset by processing domain events (like user registration) fetched from RabbitMQ.
+Dibangun dengan **.NET 10.0 (C#)**, aplikasi ini menerapkan desain modern **Vertical Slice Architecture** dengan pola **CQRS (via MediatR)**. Desain ini memastikan independensi kode di tiap-tiap fitur tanpa hirarki folder controller/service klasik.
 
-## Features
+Layanan ini mengintegrasikan pola RabbitMQ Inbox untuk mendengarkan pesan pendaftaran user baru dari `SS-AuthService` agar profil awal langsung terbentuk secara *event-driven*.
 
-- **Profile Management**: Perform CRUD operations on customer profiles (name, bio, avatar upload, contact data).
-- **Address Books**: Add, remove, and update shipping/billing locations linked directly to active profiles, including enforcing default addressing logic.
-- **Vertical Slice Architecture**: Decouples dependencies by organizing business logic geographically by feature instead of traditional layers.
-- **Idempotency with Inbox**: Prevents the duplicate processing of RabbitMQ messages using an Inbox table design.
-- **Observability & Health Checks**: Exposes a `/health` probe and incorporates complete OpenTelemetry distributed tracing and Serilog.
-- **Zero Trust Integration**: Implements a `GatewaySignatureMiddleware` to reject requests lacking the valid HMAC signature from the API Gateway.
+---
 
 ## Tech Stack
 
-| Category       | Technology                                     |
+| Kategori       | Teknologi                                      |
 | -------------- | ---------------------------------------------- |
-| Backend        | .NET 10.0 (C#)                                 |
-| Architecture   | Vertical Slice Architecture (CQRS via MediatR) |
+| Backend        | .NET 10.0 (C#) Minimal API                     |
+| Architecture   | Vertical Slice Architecture (MediatR CQRS)     |
 | Database       | PostgreSQL                                     |
 | ORM            | Entity Framework Core (Npgsql)                 |
+| Message Broker | RabbitMQ (.NET Client / MassTransit)           |
 | Validation     | FluentValidation                               |
-| Message Broker | RabbitMQ (.NET Client)                         |
 | Telemetry      | OpenTelemetry, Serilog                         |
+| Security       | HMAC Signature Validation (Zero-Trust Gateway) |
 
-## Project Structure
+---
+
+## Arsitektur: Vertical Slice
+
+Berbeda dengan Clean Architecture, seluruh perintah (*Commands*), kuiri (*Queries*), validasi (*Validators*), dan endpoints (*API Mappings*) untuk sebuah fitur disatukan dalam satu lokasi direktori (Slice).
 
 ```text
 SS-ProfileService/
 ├── src/
-│   └── SS.ProfileService.API/   # Application Core, Commands, Handlers, Endpoints
-│       ├── Features/            # Vertical slice grouping (e.g. Profiles, Addresses)
-│       ├── Middleware/          # Origin gateway security middleware
-│       └── Program.cs           # Minimal API entry point
+│   └── SS.ProfileService.API/
+│       ├── Features/
+│       │   ├── Profiles/                 # Slice: Profil Pengguna
+│       │   │   ├── CreateProfile/        # Handler/Endpoint untuk inisialisasi profil
+│       │   │   ├── GetProfileById/       # Handler/Endpoint untuk membaca data profil
+│       │   │   └── UpdateProfile/        # Handler/Endpoint untuk memperbarui bio, avatar
+│       │   └── Addresses/                # Slice: Buku Alamat
+│       │       ├── CreateAddress/        # Handler/Endpoint penambahan alamat baru
+│       │       ├── UpdateAddress/        # Handler/Endpoint update data alamat
+│       │       ├── DeleteAddress/        # Handler/Endpoint soft-delete alamat
+│       │       ├── SetDefaultAddress/    # Mengganti alamat default primary
+│       │       └── Shared/               # Entitas/Record yang dibagi antar operasi alamat
+│       ├── Domain/                       # Entitas EF Core (UserProfile, Address, InboxEvent)
+│       ├── Infrastructure/               # Database Context, RabbitMQ worker
+│       ├── Middleware/                   # GatewaySignatureMiddleware (HMAC)
+│       ├── Extensions/                   # OpenTelemetry DI setup
+│       ├── Program.cs                    # Minimal API Registration
+│       └── appsettings.json
 ├── test/
-│   └── SS.ProfileService.Tests/ # Unit and integration testing configurations
-├── db/                          # Database connection or initial scripts
-└── SS-ProfileService.slnx       # C# Project Solution manifest
+│   └── SS.ProfileService.Tests/          # xUnit integration & unit tests
+└── SS-ProfileService.slnx
 ```
 
-## Requirements
+---
+
+## Fitur Utama
+
+- **Profile Management**: Update biodata, avatar upload (link image), dan nomor kontak.
+- **Address Book Management**: Relasi *one-to-many* untuk alamat user. Mendukung logika `is_default`, di mana pemilihan alamat baru otomatis mereset flag alamat lama.
+- **Zero-Trust Middleware**: Menggunakan `GatewaySignatureMiddleware` untuk menolak request API secara langsung yang tidak memiliki signature dari API Gateway (`GATEWAY_HMAC_SECRET`).
+- **Inbox Idempotency**: Mencegah proses inisialisasi ganda pada profil saat service mendengarkan pesan pendaftaran akun dari message broker secara asinkron.
+- **Soft Deletion**: Mencegah kehilangan historis data keranjang atau order (menggunakan kolom `deleted_at`).
+
+---
+
+## API Endpoints (Minimal API)
+
+Endpoints didefinisikan dalam masing-masing slice di `Features/...`. Endpoint diproteksi via middleware.
+
+| Kategori | Endpoint                               | HTTP Method | Auth Role | Deskripsi                               |
+| -------- | -------------------------------------- | ----------- | --------- | --------------------------------------- |
+| Profile  | `/api/profiles/me`                     | GET         | JWT User  | Dapatkan profil sendiri                 |
+| Profile  | `/api/profiles/me`                     | PUT         | JWT User  | Perbarui profil sendiri                 |
+| Address  | `/api/profiles/me/addresses`           | GET         | JWT User  | List semua buku alamat user             |
+| Address  | `/api/profiles/me/addresses`           | POST        | JWT User  | Tambah alamat baru                      |
+| Address  | `/api/profiles/me/addresses/{id}`      | PUT         | JWT User  | Update alamat spesifik                  |
+| Address  | `/api/profiles/me/addresses/{id}`      | DELETE      | JWT User  | Hapus (soft-delete) alamat              |
+| Address  | `/api/profiles/me/addresses/{id}/default` | PUT      | JWT User  | Set alamat menjadi *Default Shipping*   |
+| Health   | `/health`                              | GET         | Anonim    | Liveness/Readiness probe                |
+
+---
+
+## Environment Variables
+
+| Variable                               | Deskripsi                                                            | Wajib |
+| -------------------------------------- | -------------------------------------------------------------------- | ----- |
+| `ASPNETCORE_ENVIRONMENT`               | Status Environment (`Development`, `Production`, `Testing`)          | ✅    |
+| `ConnectionStrings__DefaultConnection` | String koneksi PostgreSQL                                            | ✅    |
+| `RabbitMQ__Host`                       | RabbitMQ server host                                                 | ✅    |
+| `RabbitMQ__Port`                       | RabbitMQ connection port (default 5672)                              | ✅    |
+| `RabbitMQ__Username`                   | RabbitMQ auth user                                                   | ✅    |
+| `RabbitMQ__Password`                   | RabbitMQ auth password                                               | ✅    |
+| `GATEWAY_HMAC_SECRET`                  | Kunci rahasia HMAC-SHA256 untuk memverifikasi identitas Reverse Proxy| ✅    |
+
+> **Catatan Keamanan**: Akses client eksternal harus melalui SS-APIGateway. Apabila request HTTP dipanggil langsung dengan bypass Gateway, middleware `GatewaySignatureMiddleware` akan me-return *403 Forbidden*.
+
+---
+
+## Instalasi & Menjalankan
+
+### Prasyarat
 
 - .NET 10.0 SDK
-- PostgreSQL
-- RabbitMQ
+- PostgreSQL instance (db: `ss_profile_db`)
+- RabbitMQ instance
 
-## Installation
+### Menjalankan Server Lokal
 
 ```bash
 git clone <repository>
 cd SamStore/SS-ProfileService
-```
 
-Build the dependencies:
-
-```bash
+# Restore dependensi nuget
 dotnet restore
-```
 
-## Configuration
-
-Configuration parameters are mapped inside `appsettings.json` alongside system environment variables. Important fields include:
-
-```env
-ConnectionStrings__DefaultConnection= # PostgreSQL database connection format (e.g. Host=localhost;Port=5432;Database=ss_profile_db...)
-RabbitMQ__Host=                       # RabbitMQ instance hostname
-RabbitMQ__Port=                       # RabbitMQ connection port
-RabbitMQ__Username=                   # RabbitMQ credentials
-RabbitMQ__Password=                   # RabbitMQ credentials
-GATEWAY_HMAC_SECRET=                  # Secret matched against the gateway origin signature middleware
-ASPNETCORE_ENVIRONMENT=               # Development, Testing or Production
-```
-
-## Running Locally
-
-Run locally (Uses configurations mapped in `launchSettings.json`):
-
-```bash
+# Run API secara lokal (Pastikan config connection diubah ke lokal)
 dotnet run --project src/SS.ProfileService.API/SS.ProfileService.API.csproj
 ```
 
-## Build
-
-Compile using the .NET CLI:
+### Build
 
 ```bash
 dotnet build
 ```
 
-## Testing
+### Testing
 
-Run unit tests via xUnit framework (The tests simulate a real flow using the in-memory Entity Framework testing provider):
-
+Proyek pengujian (`test/SS.ProfileService.Tests`) dirancang untuk memutar container in-memory database atau test-server kustom.
 ```bash
 dotnet test
 ```
 
-## API Documentation
+---
 
-Not identified from source code.
+## Integrasi Event Broker
 
-## Database
-
-- **Database Type**: PostgreSQL.
-- **ORM**: Entity Framework Core.
-- **Migrations**: Executed as code-first entity schemas.
-- **Data Properties**: Relies on a schema definition featuring `user_profiles`, `user_addresses`, `inbox_events` and `outbox_events`. All data utilizes UUID/GUID based mapping and enforces logical soft-deletion structures via audit trail timestamps.
-
-## Deployment
-
-- **Docker**: Packaged using the standard multi-stage .NET `Dockerfile`.
-- **Docker Compose**: Preconfigured inside the gateway repository.
-
-## Architecture Notes
-
-- **Vertical Slice Architecture**: Enhances maintainability and feature isolation by grouping queries and commands with their respective endpoint handlers.
+**Consumer (InboxWorker)**:
+Layanan melacak *user registrations* melalui antrian pesan RabbitMQ (exchange `samstore.events` rute `auth.user.registered`). Jika terdeteksi, layanan akan membuat baris *Profile* kosong yang siap digunakan pelanggan.
 
 ## Known Issues
 
-Not identified from source code.
-
-## Future Improvements
-
-- Introduce a dedicated photo uploading service integration.
-
-## License
-
-```text
-License information not specified.
-```
+Tidak ada issue yang teridentifikasi dari source code.
